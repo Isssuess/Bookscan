@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BookScan - Single Page</title>
+  <!-- Tesseract.js for OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
+  <style>
+    /* Basic reset & font styling */
+    * {
+      margin: 0; 
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      color: #333;
+      padding: 20px;
+    }
+
+    /* Header / Nav */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #2d2e2e;
+    }
+    nav a {
+      margin: 0 0.75rem;
+      text-decoration: none;
+      color: #555;
+    }
+    nav a:hover {
+      color: #000;
+    }
+
+    /* Search / Upload area */
+    .search-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .search-bar input {
+      width: 200px;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .search-bar button {
+      margin-left: 0.5rem;
+      padding: 0.5rem 1rem;
+      border: none;
+      background-color: #7ac79f;
+      color: #fff;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .search-bar button:hover {
+      background-color: #68b18c;
+    }
+
+    .upload-area {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+    .upload-area input[type="file"] {
+      margin-bottom: 1rem;
+    }
+    .preview img {
+      max-width: 300px;
+      border: 1px solid #ccc;
+      margin-top: 0.5rem;
+    }
+
+    /* Book results container */
+    .book-results {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .book-card {
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      padding: 1rem;
+      width: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .book-card img {
+      max-width: 120px;
+      height: auto;
+      margin-bottom: 0.5rem;
+    }
+    .book-card h3 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+    .book-card p {
+      font-size: 0.9rem;
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    .book-card a {
+      color: #fff;
+      background: #7ac79f;
+      text-decoration: none;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .book-card a:hover {
+      background: #68b18c;
+    }
+
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      color: #aaa;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header / Navigation -->
+  <header>
+    <div class="logo">BookScan</div>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#">Products</a>
+      <a href="#">Compare</a>
+      <a href="#">Price</a>
+    </nav>
+  </header>
+
+  <!-- Search container (if you want a text-based search) -->
+  <div class="search-container">
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search books..." />
+      <button onclick="searchGoogleBooks()">Search</button>
+    </div>
+  </div>
+
+  <!-- Upload area -->
+  <div class="upload-area">
+    <label for="fileInput">Upload a picture of your book(s) or bookshelf:</label>
+    <input type="file" id="fileInput" accept="image/*" />
+    <button id="analyzeBtn" onclick="analyzeImage()">Analyze Image</button>
+    <div class="preview" id="previewContainer"></div>
+  </div>
+
+  <!-- Container to show found books -->
+  <div class="book-results" id="bookResults"></div>
+
+  <footer>
+    <p>&copy; 2025 BookScan. All rights reserved.</p>
+  </footer>
+
+  <script>
+    let uploadedImage = null;
+
+    // Show uploaded image
+    const fileInput = document.getElementById('fileInput');
+    const previewContainer = document.getElementById('previewContainer');
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          previewContainer.innerHTML = '<img src="' + e.target.result + '" alt="Uploaded Image">';
+          uploadedImage = e.target.result; // Base64 string
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    /**
+     * Analyze image using Tesseract.js to extract text (naive approach).
+     * Then call Google Books API with extracted lines of text.
+     */
+    function analyzeImage() {
+      if (!uploadedImage) {
+        alert("Please upload an image first.");
+        return;
+      }
+
+      // Clear previous results
+      document.getElementById('bookResults').innerHTML = "Analyzing image, please wait...";
+
+      Tesseract.recognize(
+        uploadedImage,
+        'eng', 
+        { logger: m => console.log(m) }
+      ).then(({ data: { text } }) => {
+          // text is all recognized content from image
+          // We'll do a naive split by newline
+          const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+
+          // Remove duplicates
+          const uniqueLines = [...new Set(lines)];
+
+          // Clear the results area
+          document.getElementById('bookResults').innerHTML = "";
+
+          // For each recognized line, call Google Books
+          uniqueLines.forEach(line => {
+            searchGoogleBooks(line);
+          });
+      });
+    }
+
+    /**
+     * Search Google Books by a query string.
+     * If 'q' is not provided, uses the text input field.
+     */
+    function searchGoogleBooks(q) {
+      const query = q || document.getElementById('searchInput').value;
+      if (!query) return;
+
+      // Google Books API endpoint (no API key used in this simple example)
+      const apiURL = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=3`;
+
+      fetch(apiURL)
+        .then(response => response.json())
+        .then(data => {
+          if (data.items) {
+            displayBooks(data.items);
+          }
+        })
+        .catch(error => console.error(error));
+    }
+
+    /**
+     * Display books in the .book-results container
+     */
+    function displayBooks(books) {
+      const bookResults = document.getElementById('bookResults');
+
+      books.forEach(book => {
+        const info = book.volumeInfo;
+        const title = info.title || "No Title";
+        const authors = info.authors ? info.authors.join(', ') : "Unknown Author";
+        const thumbnail = info.imageLinks ? info.imageLinks.thumbnail : "";
+        const buyLink = info.infoLink; // or saleInfo.buyLink if available
+
+        // Create a card
+        const card = document.createElement('div');
+        card.className = 'book-card';
+
+        // Thumbnail
+        if (thumbnail) {
+          const img = document.createElement('img');
+          img.src = thumbnail;
+          img.alt = title;
+          card.appendChild(img);
+        }
+
+        // Title
+        const titleEl = document.createElement('h3');
+        titleEl.textContent = title;
+        card.appendChild(titleEl);
+
+        // Author
+        const authorEl = document.createElement('p');
+        authorEl.textContent = authors;
+        card.appendChild(authorEl);
+
+        // Link to buy (or see more info)
+        const linkEl = document.createElement('a');
+        linkEl.href = buyLink;
+        linkEl.target = "_blank";
+        linkEl.textContent = "Buy / More Info";
+        card.appendChild(linkEl);
+
+        bookResults.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>
